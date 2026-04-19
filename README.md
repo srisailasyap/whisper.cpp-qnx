@@ -1,18 +1,29 @@
-# whisper.cpp [![Build](https://github.com/qnx-ports/build-files/actions/workflows/whisper.cpp.yml/badge.svg)](https://github.com/qnx-ports/build-files/actions/workflows/whisper.cpp.yml)
+# whisper.cpp-qnx
 
-**NOTE**: QNX ports are only supported from a Linux host operating system
+Build files to cross-compile [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (OpenAI Whisper C/C++ port) for the **QNX Neutrino RTOS 8.0** on `aarch64le` and `x86_64`.
 
-whisper.cpp is a C/C++ implementation of OpenAI's Whisper speech-to-text model that runs fully on-device with no GPU or internet required.
+## Upstream version
 
-Use `$(nproc)` instead of `4` after `JLEVEL=` and `-j` if you want to use the maximum number of cores to build this project.
-32GB of RAM is recommended for using `JLEVEL=$(nproc)` or `-j$(nproc)`.
+| Item | Value |
+|---|---|
+| whisper.cpp tag | **`v1.8.4`** |
+| Source fork (QNX patches applied) | [srisailasyap/whisper.cpp @ qnx-v1.8.4](https://github.com/srisailasyap/whisper.cpp/tree/qnx-v1.8.4) |
+| QNX SDP | 8.0 |
+| Tested targets | Raspberry Pi 5 (`nto-aarch64-le`), `nto-x86_64-o` |
 
-# Compile the port for QNX in a Docker container
+> **NOTE:** QNX ports are only supported from a Linux host operating system.
 
-Pre-requisite: Install Docker on Ubuntu https://docs.docker.com/engine/install/ubuntu/
+Use `$(nproc)` instead of `4` after `JLEVEL=` and `-j` to use the maximum number of cores. 32GB of RAM is recommended when using `JLEVEL=$(nproc)` or `-j$(nproc)`.
+
+## Build in a Docker container
+
+Pre-requisite: [Install Docker on Ubuntu](https://docs.docker.com/engine/install/ubuntu/)
+
 ```bash
 # Create a workspace
 mkdir -p ~/qnx_workspace && cd ~/qnx_workspace
+
+# Clone the QNX build-files repo (provides docker scripts)
 git clone https://github.com/qnx-ports/build-files.git
 
 # Build the Docker image and create a container
@@ -20,76 +31,89 @@ cd build-files/docker
 ./docker-build-qnx-image.sh
 ./docker-create-container.sh
 
-# Now you are in the Docker container
-
-# source qnxsdp-env.sh
+# Inside the Docker container:
 source ~/qnx800/qnxsdp-env.sh
 
-# Clone whisper.cpp
+# Clone this port and the QNX-patched whisper.cpp fork
 cd ~/qnx_workspace
-git clone https://github.com/qnx-ports/whisper.cpp.git
+git clone https://github.com/srisailasyap/whisper.cpp-qnx.git
+git clone -b qnx-v1.8.4 https://github.com/srisailasyap/whisper.cpp.git
 
 # Build whisper.cpp
-QNX_PROJECT_ROOT="$(pwd)/whisper.cpp" make -C build-files/ports/whisper.cpp install -j4
+QNX_PROJECT_ROOT="$(pwd)/whisper.cpp" make -C whisper.cpp-qnx install -j4
 ```
 
-# Compile the port for QNX on a host machine
-```bash
-# Clone the repos
-mkdir -p ~/qnx_workspace && cd ~/qnx_workspace
-git clone https://github.com/qnx-ports/build-files.git
-git clone https://github.com/qnx-ports/whisper.cpp.git
+## Build natively on a host
 
-# source qnxsdp-env.sh
+```bash
+mkdir -p ~/qnx_workspace && cd ~/qnx_workspace
+
+# Clone this port and the QNX-patched whisper.cpp fork
+git clone https://github.com/srisailasyap/whisper.cpp-qnx.git
+git clone -b qnx-v1.8.4 https://github.com/srisailasyap/whisper.cpp.git
+
+# Source the QNX SDP environment
 source ~/qnx800/qnxsdp-env.sh
 
-# Build whisper.cpp
-QNX_PROJECT_ROOT="$(pwd)/whisper.cpp" make -C build-files/ports/whisper.cpp install -j4
+# Build
+QNX_PROJECT_ROOT="$(pwd)/whisper.cpp" make -C whisper.cpp-qnx install -j4
 ```
 
-# Download a model
+## Download a model
 
-whisper.cpp requires a GGML-format Whisper model. You can download one on your host:
+whisper.cpp requires a GGML-format Whisper model:
+
 ```bash
 cd ~/qnx_workspace/whisper.cpp/models
 ./download-ggml-model.sh tiny.en
 ```
 
-# How to run on the target
+## Run on the target
 
-Transfer the binaries, libraries, model, and test audio to the target:
+Transfer the binaries, libraries, model, and test audio to the QNX target:
+
 ```bash
 TARGET_HOST=<target-ip-address-or-hostname>
 
-# Transfer whisper binaries
+# Binaries
 scp $QNX_TARGET/aarch64le/usr/local/bin/whisper-* qnxuser@$TARGET_HOST:/data/home/qnxuser/
 
-# Transfer shared libraries
+# Shared libraries
 scp $QNX_TARGET/aarch64le/usr/local/lib/libwhisper* qnxuser@$TARGET_HOST:/data/home/qnxuser/
-scp $QNX_TARGET/aarch64le/usr/local/lib/libggml* qnxuser@$TARGET_HOST:/data/home/qnxuser/
+scp $QNX_TARGET/aarch64le/usr/local/lib/libggml*    qnxuser@$TARGET_HOST:/data/home/qnxuser/
 
-# Transfer model and test audio
+# Model + test audio
 scp ~/qnx_workspace/whisper.cpp/models/ggml-tiny.en.bin qnxuser@$TARGET_HOST:/data/home/qnxuser/
-scp ~/qnx_workspace/whisper.cpp/samples/jfk.wav qnxuser@$TARGET_HOST:/data/home/qnxuser/
+scp ~/qnx_workspace/whisper.cpp/samples/jfk.wav         qnxuser@$TARGET_HOST:/data/home/qnxuser/
 ```
 
 Run on the target:
+
 ```bash
-# ssh into the target
 ssh qnxuser@$TARGET_HOST
 
-# Set library path
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/data/home/qnxuser
 export GGML_BACKEND_PATH=/data/home/qnxuser
 
-# Run speech-to-text
 cd /data/home/qnxuser
+
+# Speech-to-text
 ./whisper-cli -m ggml-tiny.en.bin jfk.wav
 
-# Run benchmark
+# Benchmark
 ./whisper-bench -m ggml-tiny.en.bin
 ```
 
 ## Supported architectures
-- aarch64le
-- x86_64
+
+- `aarch64le`
+- `x86_64`
+
+## Building a different whisper.cpp version
+
+To rebuild against a different upstream tag:
+
+1. Check out the desired tag in a fresh whisper.cpp clone.
+2. Apply `whisper.cpp.patch` from this repo (`git apply whisper.cpp.patch`) and resolve any conflicts.
+3. Regenerate the patch: `git diff > whisper.cpp.patch`.
+4. Update the tag reference in this README.
