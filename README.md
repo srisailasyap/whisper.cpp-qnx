@@ -1,8 +1,16 @@
-# whisper.cpp-qnx
+# whisper.cpp port to QNX
 
-Build files to cross-compile [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (OpenAI Whisper C/C++ port) for the **QNX Neutrino RTOS 8.0** on `aarch64le` and `x86_64`.
+This is a port of GGML's [whisper.cpp](https://github.com/ggml-org/whisper.cpp) <img src="https://avatars.githubusercontent.com/u/134263123?s=48&v=4" width=24 /> project to **QNX Neutrino RTOS 8.0**. Currently only supports CPU-based ggml. With whisper.cpp you can run OpenAI's Whisper speech-to-text models fully on-device — no GPU, no internet — on QNX targets including automotive, robotics, and industrial platforms.
 
-## Upstream version
+Supported models: `tiny`, `base`, `small`, `medium`, `large-v1/v2/v3`, plus all English-only `.en` variants and distilled models (`distil-whisper`).
+
+The latest release was tested with **whisper.cpp `v1.8.4`** on a Raspberry Pi 5 (QNX 8.0, `aarch64le`) and `x86_64` QNX targets, using the `ggml-tiny.en` and `ggml-base.en` models.
+
+QNX-specific changes (committed on top of upstream v1.8.4):
+- ggml CPU detection via QNX `syspage` (SIMD feature probing)
+- `aarch64le` / `nto-aarch64-le` recognized by the ggml CMake regex
+- `getcwd()` fallback in `ggml-backend-reg.cpp` (QNX lacks `std::filesystem`)
+- `mmap`-based Whisper model loader for faster load times on QNX filesystems
 
 | Item | Value |
 |---|---|
